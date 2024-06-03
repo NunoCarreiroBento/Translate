@@ -3,19 +3,33 @@ FROM httpd:2.4
 
 # Install required packages: Python and mod_wsgi
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip apache2-dev && \
-    pip3 install mod_wsgi && \
+    apt-get install -y python3 python3-pip python3-venv libapache2-mod-wsgi-py3 && \
     apt-get clean
 
-# Install required Python packages
-COPY requirements.txt /app/requirements.txt
-RUN pip3 install --no-cache-dir -r /app/requirements.txt
+# Create a directory for the app
+WORKDIR /app
 
-# Copy the Flask app into the container
+# Copy the Flask app and requirements file into the container
 COPY app.py /app/app.py
+COPY requirements.txt /app/requirements.txt
 
-# Configure Apache to serve the Flask app
-COPY flaskapp.conf /usr/local/apache2/conf/httpd.conf
+# Create a virtual environment
+RUN python3 -m venv venv
+
+# Install required Python packages in the virtual environment
+RUN /app/venv/bin/pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy the WSGI entry point into the container
+COPY app.wsgi /app/app.wsgi
+
+# Copy the Apache configuration file
+COPY flaskapp.conf /usr/local/apache2/conf/extra/flaskapp.conf
+
+# Include the Flask app configuration in the main Apache config
+RUN echo "Include /usr/local/apache2/conf/extra/flaskapp.conf" >> /usr/local/apache2/conf/httpd.conf
 
 # Expose the port Apache is running on
 EXPOSE 80
+
+# Command to start Apache in the foreground
+CMD ["httpd-foreground"]
